@@ -1,0 +1,15 @@
+name: gp_enso
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - bokeh
+  - pymc
+  - arviz
+  - statsmodels
+  - scikit-learn
+  - pip
