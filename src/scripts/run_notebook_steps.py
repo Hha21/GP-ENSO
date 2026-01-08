@@ -12,6 +12,10 @@ from bokeh.models import Span
 
 from gp_enso.io import prepare_enso_dataframe
 from gp_enso.explore import plot_autocorrelation, plot_periodogram_years
+from gp_enso.gp_model import build_quasiperiodic_gp_model, fit_map
+from gp_enso.forecast import make_monthly_date_grid, predict_gp, draw_paths
+from gp_enso.plot import plot_gp_forecast
+
 
 def plot_timeseries_bokeh(df):
     p = figure(
@@ -32,17 +36,35 @@ def plot_timeseries_bokeh(df):
 
 def main():
 
-    prepared = prepare_enso_dataframe(REPO_ROOT / "data" / "nino34.long.anom.csv", rolling_window=3)
+    prepared = prepare_enso_dataframe(REPO_ROOT / "data" / "nino34.long.anom.csv")
     df = prepared.df
 
-    # Notebook plot block
-    # plot_timeseries_bokeh(df)
+    t = (df["t"].values[:, None])
+    y = df["y_n"].values
 
-    # Notebook ACF block (uses raw NINO34 in notebook)
-    dominant_period = plot_periodogram_years(df["NINA34"].to_numpy())
-    print(f"Dominant period: {dominant_period:.2f} years")
+    model, gp = build_quasiperiodic_gp_model(t, y)
+    mp = fit_map(model)
 
-    plot_autocorrelation(df["NINA34"].to_numpy(), lags=100)
+    dates = make_monthly_date_grid(start="1870-01-01", end="2040-08-01", freq="MS") # Month Start
+    pred = predict_gp(model, gp, mp, dates)
+
+    # rescale back to original units
+    mu_sc = pred.mu * prepared.value_std + prepared.first_value
+    cov_sc = pred.cov * (prepared.value_std ** 2)
+
+    samples = draw_paths(mu_sc, cov_sc, draws=5, seed=1)
+
+    p = plot_gp_forecast(
+        dates=pred.dates,
+        mu=mu_sc,
+        cov=cov_sc,
+        samples=samples,
+        df_obs=df,
+        obs_col=prepared.smooth_col,  # or prepared.value_col
+        split_date="2025-08-01",
+        title="ENSO GP forecast",
+    )
+    show(p)
 
 
 if __name__ == "__main__":

@@ -34,15 +34,6 @@ def load_nino34_csv(
 
     df.columns = ["Date", "NINA34"]
 
-    # if date_col not in df.columns:
-    #     raise ValueError(f"Expected a '{date_col}' column in {csv_path}, got columns: {list(df.columns)}")
-    
-    # candidate_cols = [c for c in df.columns if c.upper() in {"NINA34"}]
-    # if not candidate_cols:
-    #     raise ValueError(f"Expected a NINO34/NINA34 column in {csv_path}, got columns: {list(df.columns)}")
-
-    # value_col = candidate_cols[0]
-
     return df
 
 def clean_and_index(
