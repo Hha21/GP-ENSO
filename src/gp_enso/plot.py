@@ -53,3 +53,21 @@ def plot_gp_forecast(
     p.add_layout(predline)
     p.legend.location = "bottom_right"
     return p
+
+def plot_timeseries(
+    x,
+    y,
+    *,
+    title: str,
+    y_label: str,
+    width: int = 800,
+    height: int = 450,
+    zero_line: bool = False,
+):
+    p = figure(x_axis_type="datetime", title=title, width=width, height=height)
+    p.xaxis.axis_label = "Date"
+    p.yaxis.axis_label = y_label
+    if zero_line:
+        p.add_layout(Span(location=0, dimension="width", line_dash="dashed", line_width=2))
+    p.line(x, y, line_width=2, alpha=0.6)
+    return p
