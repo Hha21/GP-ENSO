@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import requests
 
 from .time import dates_to_year_index
 
@@ -33,15 +34,6 @@ def load_nino34_csv(
     df = pd.read_csv(csv_path)
 
     df.columns = ["Date", "NINA34"]
-
-    # if date_col not in df.columns:
-    #     raise ValueError(f"Expected a '{date_col}' column in {csv_path}, got columns: {list(df.columns)}")
-    
-    # candidate_cols = [c for c in df.columns if c.upper() in {"NINA34"}]
-    # if not candidate_cols:
-    #     raise ValueError(f"Expected a NINO34/NINA34 column in {csv_path}, got columns: {list(df.columns)}")
-
-    # value_col = candidate_cols[0]
 
     return df
 
@@ -115,3 +107,87 @@ def prepare_enso_dataframe(
         first_value=first_value,
         value_std=y_std,
     )
+
+def prepare_sunspots(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    out = df.copy()
+    out = out.dropna(subset=["Sunspot_Number"])
+    out.index = pd.to_datetime(out["Date"])
+    return out
+
+def load_sunspots(
+    url: str = "https://www.sidc.be/SILSO/INFO/snmtotcsv.php",
+) -> pd.DataFrame:
+    """
+    Load yearly mean total sunspot number (SILSO)
+    """
+    df = pd.read_csv(
+        url,
+        sep = ";",
+        header = None,
+        names = ["Year", "Month", "Date", "Sunspot_Number", "StdDev", "Observations", "Definitive"],
+    )
+
+    df["Date"] = pd.to_datetime(df["Year"].astype(int).astype(str), format="%Y")
+    return df
+
+def download_noaa_tides(
+    station_id: str,
+    start_date: str,
+    end_date: str,
+    product: str = "water_level",
+) -> pd.DataFrame:
+    """
+    Download tide/current data from NOAA Tides & Currents API.
+    Dates are YYYYMMDD strings.
+    Returns a DataFrame with columns ['time', 'water_level'] (floats) and datetime 'time'.
+    """
+    base_url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
+    params = {
+        "station": station_id,
+        "product": product,
+        "begin_date": start_date,
+        "end_date": end_date,
+        "datum": "MLLW",
+        "units": "metric",
+        "time_zone": "gmt",
+        "format": "json",
+        "application": "research",
+    }
+
+    r = requests.get(base_url, params=params, timeout=60)
+    r.raise_for_status()
+    payload = r.json()
+
+    if "data" not in payload:
+        raise RuntimeError(f"NOAA API returned no 'data'. Payload keys: {list(payload.keys())}. Error: {payload.get('error')}")
+
+    df = pd.DataFrame(payload["data"])
+    # NOAA uses 't' and 'v' strings
+    df["time"] = pd.to_datetime(df["t"])
+    df["water_level"] = pd.to_numeric(df["v"], errors="coerce")
+    df = df[["time", "water_level"]].dropna()
+    df = df.sort_values("time").reset_index(drop=True)
+    return df
+
+def subsample(df: pd.DataFrame, step: int = 10) -> pd.DataFrame:
+    """
+    Take every `step`th row (like df.iloc[::10]).
+    """
+    return df.iloc[::step].copy()
+
+def normalise_column(df: pd.DataFrame, col: str) -> tuple[pd.DataFrame, float, float]:
+    """
+    Add y_n column from `col` using notebook scheme.
+    Returns (df_with_y_n, first_value, y_std)
+    """
+    y = df[col].to_numpy(dtype=float)
+    first = float(y[0])
+    std = float(np.std(y))
+    if std == 0:
+        raise ValueError("Std is zero; cannot normalise.")
+    y_n = (y - first) / std
+    out = df.copy()
+    out["y_n"] = y_n
+    return out, first, std
