@@ -55,8 +55,7 @@ def plot_multi_input_gp(
     ax.grid(True, alpha=0.3)
     ax.axhline(y=0, color="gray", linestyle="--", linewidth=0.5, alpha=0.5)
     plt.tight_layout()
-    plt.show()
+    
     save_dir = config.PLOT_DIR / "GP-Prediction.png"
-
     plt.savefig(save_dir)
 
